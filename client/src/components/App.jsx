@@ -11,7 +11,6 @@ export default function App() {
   const [metricsRefresh, setMetricsRefresh] = useState(false);
   const pollMs = 1000;
 
-  // Dev-only reset
   const handleAdminReset = () => {
     axios.post('/admin/clear-db')
       .then(() => {
@@ -24,12 +23,10 @@ export default function App() {
       })
   };
 
-  // handlers for admin reset and order form submission
   const refreshBookHandler = () => setBookRefresh((b) => !b);
   const refreshTradesHandler = () => setTradesRefresh((b) => !b);
   const refreshMetricsHandler = () => setMetricsRefresh((b) => !b);
 
-  // Shared poller
   const poller = useCallback((fn) => {
     let cancelled = false;
     let timerId = null;

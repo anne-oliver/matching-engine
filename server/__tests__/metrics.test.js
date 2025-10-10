@@ -51,7 +51,7 @@ describe('Metrics tests', () => {
 
       expect(m.qps.buckets[idx]).toBe(2);
 
-      const t2 = t0 + 2000; //advance 2 seconds (2 x 1000 miliseconds)
+      const t2 = t0 + 2000; 
       const idx1 = (base + 1) % size;
       const idx2 = (base + 2) % size;
       m.qps.mark(t2);

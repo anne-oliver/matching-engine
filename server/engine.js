@@ -79,7 +79,6 @@ class MatchingEngine {
         this.book.addOrder(incoming);
         this.hooks.onRested(incoming);
       } else {
-        //qty is the cancelled remainder
         this.hooks.onCancelled(incoming);
       }
     }
@@ -96,18 +95,16 @@ class MatchingEngine {
       qty: qty,
       buy:  (maker.side === 'buy')  ? { id: maker.id } : { id: taker.id },
       sell: (maker.side === 'sell') ? { id: maker.id } : { id: taker.id },
-      ts: Date.now() //timestamp on trade completion
+      ts: Date.now()
     };
 
     this.trades.push(trade);
     this.tradedQtyTotal += qty;
 
-    //trades array capped at 10k
     if (this.trades.length > 10000) {
       this.trades.shift();
     }
 
-    // add to DB
     this.hooks.onTrade(trade);
   }
 }

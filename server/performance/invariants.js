@@ -1,4 +1,3 @@
-// Helpers to iterate book snapshot
 function levelsFrom(book) {
   return [...(book.buys || []), ...(book.sells || [])];
 }
@@ -15,14 +14,12 @@ function* iterOrders(book) {
   }
 }
 
-// 1) No crossed book at rest
 function crossedOk(eng) {
   const bb = eng.book.bestBid();
   const ba = eng.book.bestAsk();
   return (bb === undefined || ba === undefined || bb < ba);
 }
 
-// 2) FIFO within each price level (timestamps non-decreasing)
 function fifoOk(book) {
   const monotonic = (levels) => {
     for (const lvl of (levels || [])) {
@@ -39,7 +36,6 @@ function fifoOk(book) {
   return monotonic(book.buys) && monotonic(book.sells);
 }
 
-// 3) Price ordering between levels (bids desc, asks asc)
 function priceOrderOk(book) {
   const asc  = (a) => a.every((v,i,arr) => i === 0 || arr[i-1] <= v);
   const desc = (a) => a.every((v,i,arr) => i === 0 || arr[i-1] >= v);
@@ -48,7 +44,6 @@ function priceOrderOk(book) {
   return desc(bidPrices) && asc(askPrices);
 }
 
-// 4) Non-negativity
 function nonNegativeOk(book) {
   for (const o of iterOrders(book)) {
     if ((o.qty ?? 0) < 0) {
@@ -58,7 +53,6 @@ function nonNegativeOk(book) {
   return true;
 }
 
-// 5) Quantity conservation for limit orders
 function quantityConservationOk(book, { tradedQtyTotal, trades }, submittedLimitQty) {
   const remaining = Array.from(iterOrders(book)).reduce((s, o) => s + (o.qty || 0), 0);
   const traded = (typeof tradedQtyTotal === 'number')
@@ -67,7 +61,6 @@ function quantityConservationOk(book, { tradedQtyTotal, trades }, submittedLimit
   return remaining + traded === submittedLimitQty;
 }
 
-// 6) Cancel semantics: cancelled ids must not appear in idIndex or queues
 function cancelSemanticsOk(eng, cancelledIds) {
   if (!cancelledIds || cancelledIds.size === 0) {
     return true;

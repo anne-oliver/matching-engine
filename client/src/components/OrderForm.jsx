@@ -25,7 +25,7 @@ export default function OrderForm({ onAfterSubmit }) {
       return;
     }
 
-    setErr(''); //reset error field for client ui
+    setErr('');
 
     const req = { side, price, qty: qtyNum, type };
 
@@ -44,24 +44,20 @@ export default function OrderForm({ onAfterSubmit }) {
 
     axios.post('/orders', req)
       .then((res) => {
-        // success → clear key (next submit is a new logical order)
         pendingKeyRef.current = null;
-        setQty(1); //default
+        setQty(1);
       })
       .catch((err) => {
         console.error('order submission error', err);
         const status = err.response?.status
 
-        //Clear key only for validation errors
         if(status >= 400 && status < 500) {
           pendingKeyRef.current = null;
         }
 
-        //Prefer server message when available
         if(err.response) {
           setErr(err.response.data?.error)
         } else if(err.request) {
-        // Network / timeout / CORS
           setErr('Server not responding. Please try again.');
         } else {
           setErr('Unexpected client error.');

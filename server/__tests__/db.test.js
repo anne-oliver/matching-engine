@@ -12,7 +12,6 @@ function clearFile(file) {
 
 describe('DB layer', () => {
 
-  //global access
   let db;
 
   beforeEach(() => {
@@ -74,13 +73,11 @@ describe('DB layer', () => {
         side: 'sell', price: 120, qty: 10, filled: 0, status: 'open', ts: Date.now(), clientOrderId: '1'
       });
 
-      // partial
       db.updateOrderRemaining(id, 3);
       let row = db.raw.prepare(`SELECT qty, status FROM orders WHERE id = ?`).get(id);
       expect(row.qty).toBe(3);
       expect(row.status).toBe('partial');
 
-      // filled
       db.updateOrderRemaining(id, 0);
       row = db.raw.prepare(`SELECT qty, status FROM orders WHERE id = ?`).get(id);
       expect(row.qty).toBe(0);
@@ -116,7 +113,7 @@ describe('DB layer', () => {
       const ids = [];
       ids.push(db.insertOrder({ side: 'buy', price: 10, qty: 1, filled: 1, status: 'open', ts: Date.now(), clientOrderId: '1' }));
       ids.push(db.insertOrder({ side: 'sell', price: 10, qty: 1, filled: 1, status: 'open', ts: Date.now(), clientOrderId: '2' }));
-      // three trades with increasing ts
+
       const base = Date.now();
       db.recordTrade({ price: 10, qty: 1, buyId: ids[0], sellId: ids[1], ts: base });
       db.recordTrade({ price: 11, qty: 2, buyId: ids[0], sellId: ids[1], ts: base + 1 });
@@ -143,10 +140,10 @@ describe('DB layer', () => {
 
       const open = db.getOpenOrders();
       const byId = open.map(o => o.id);
-      expect(byId).toContain(ids[0]); // open
-      expect(byId).toContain(ids[2]); // partial
-      expect(byId).not.toContain(ids[1]); // filled
-      expect(byId).not.toContain(ids[3]); // cancelled
+      expect(byId).toContain(ids[0]);
+      expect(byId).toContain(ids[2]);
+      expect(byId).not.toContain(ids[1]);
+      expect(byId).not.toContain(ids[3]);
     });
 
     test('clear wipes both orders and trades from db storage', () => {
@@ -165,18 +162,13 @@ describe('DB layer', () => {
 
   describe('integration - DB state transitions', () => {
     test('trade -> update -> cancel sequence yields expected DB state', () => {
-      // order rests, partially fills, trades
+
       const buyId = db.insertOrder({ side: 'buy', price: 100, qty: 6, filled: 2, status: 'partial', ts: Date.now(), clientOrderId: '9' });
       const sellId = db.insertOrder({ side: 'sell', price: 100, qty: 10, filled: 0, status: 'open', ts: Date.now(), clientOrderId: '10' });
 
-      // Engine onTrade
       db.recordTrade({ price: 100, qty: 6, buyId, sellId, ts: Date.now() });
-
-      // orders updated
       db.updateOrderRemaining(sellId, 4, 6);
       db.updateOrderRemaining(buyId, 0, 6);
-
-      // Engine onCancelled for rest of sell
       db.cancelOrder(sellId, 4);
 
       const buyRow  = db.raw.prepare(`SELECT status, qty, filled FROM orders WHERE id = ?`).get(buyId);

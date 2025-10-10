@@ -5,7 +5,7 @@ describe('workloads: deterministic smoke', () => {
   const MODES = ['steady','walk-book','cancel-heavy','single-level','many-levels', 'mixed-types'];
 
   test.each(MODES)('mode=%s produces invariants ok', (mode) => {
-    const res = run(mode, 200, { seed: 123 }); //keep small - just confirming output
+    const res = run(mode, 200, { seed: 123 });
     expect(res.mode).toBe(mode);
     expect(res.N).toBe(200);
 
@@ -14,14 +14,11 @@ describe('workloads: deterministic smoke', () => {
       expect(v).toBe(true);
     }
 
-    // latency shape
     expect(res.latency_ms.p50).toBeGreaterThanOrEqual(0);
     expect(res.latency_ms.p95).toBeGreaterThanOrEqual(res.latency_ms.p50);
     expect(res.latency_ms.p99).toBeGreaterThanOrEqual(res.latency_ms.p95);
-    // depth shape
     expect(res.depth.buys).toBeGreaterThanOrEqual(0);
     expect(res.depth.sells).toBeGreaterThanOrEqual(0);
-    // throughput field exists
     expect(res.throughput_ops_sec).toBeGreaterThanOrEqual(0);
 
   });

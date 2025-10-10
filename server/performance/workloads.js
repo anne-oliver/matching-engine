@@ -2,9 +2,7 @@ require('dotenv').config();
 const { MatchingEngine } = require('../engine');
 const { checkAll } = require('./invariants');
 
-//random number generator
 function rng(seed) {
-  //seed -  deterministic sequence for reproduceable tests
   let s = BigInt(seed);
   return () =>
     Number((s = (s*6364136223846793005n+1n)&((1n<<61n)-1n))>>29n)/(2**32);
@@ -21,7 +19,6 @@ function genLimit(id, side, price, qty) {
 function steadyGen(N, seed = 42) {
   const r = rng(seed);
   return function* () {
-    //iterate for i less than N where N is count of orders
     for (let i = 1; i <= N; i++) {
       const side = r() < 0.5 ? 'buy' : 'sell';
       const price = 95 + Math.floor(r()*11); // 95..105
@@ -34,16 +31,12 @@ function steadyGen(N, seed = 42) {
 function walkBookGen(N, seed = 7) {
   const r = rng(seed);
   return function* () {
-    // Seed asks 95..100 then push aggressive bids to walk the book
     let id = 1;
-    //resting sells
     for (let p = 95; p <= 100; p++) {
       for (let k = 0; k < 50; k++) {
-        yield genLimit(id++, 'sell', p, 1 + Math.floor(r()*3)); //quantity 1 - 3
+        yield genLimit(id++, 'sell', p, 1 + Math.floor(r()*3));
       }
     }
-    //aggressive bc priced higher than current best ask
-    //start at where sell side id counter left off
     for (; id <= N; id++) {
       yield genLimit(id, 'buy', 105 + Math.floor(r()*3), 1 + Math.floor(r()*3));
     }
@@ -52,13 +45,11 @@ function walkBookGen(N, seed = 7) {
 
 function cancelHeavyGen(N, seed = 99) {
   const r = rng(seed);
-  const open = []; //represents open orders
+  const open = [];
   return function* () {
     let id = 1;
     for (; id <= N; id++) {
       if (r() < 0.30 && open.length) {
-        //r()*open.length - scale to index
-        //splice returns array containing the removed element
         const order = open.splice(Math.floor(r()*open.length), 1)[0];
         yield { status: 'cancel', id: order.id, side: order.side };
       } else {
@@ -76,7 +67,6 @@ function cancelHeavyGen(N, seed = 99) {
 function singleLevelGen(N) {
   return function* () {
     for (let i = 1; i <= N; i++) {
-      // i & 1 is bitwise - if even i and 1 will be 0, if odd i and 1 will be odd
       yield genLimit(i, (i & 1) ? 'buy' : 'sell', 100, 1);
     }
   }
@@ -87,7 +77,7 @@ function manyLevelsGen(N, seed = 5) {
   return function* () {
     for (let i = 1; i <= N; i++) {
       const side = r() < 0.5 ? 'buy' : 'sell';
-      const price = 50 + Math.floor(r()*101); // 50..150
+      const price = 50 + Math.floor(r()*101);
       const qty = 1 + Math.floor(r()*5);
       yield genLimit(i, side, price, qty);
     }
@@ -122,12 +112,11 @@ function run(mode, N, opts = {}) {
   const gen = make(N, opts.seed);
   const eng = new MatchingEngine();
 
-  const latNs = new Array(N); //will stash per event latencies (ns)
+  const latNs = new Array(N);
   let submittedLimitQty = 0;
-  const t0 = process.hrtime.bigint(); // wall clock for total throughput
+  const t0 = process.hrtime.bigint();
   let i = 0;
 
-  //loops over events from the generator and feeds them to the engine
   for (const ev of gen()) {
     if (ev.status === 'cancel') {
       const removed = eng.book.removeOrderById(ev.side, ev.id);
@@ -140,7 +129,7 @@ function run(mode, N, opts = {}) {
     const s = process.hrtime.bigint();
     eng.process(ev);
     const e = process.hrtime.bigint();
-    latNs[i++] = Number(e - s); // ns (nanoseconds - end minus start interval)
+    latNs[i++] = Number(e - s);
 
     if (ev.type === 'limit') {
       submittedLimitQty += ev.qty;
@@ -149,9 +138,8 @@ function run(mode, N, opts = {}) {
 
   const t1 = process.hrtime.bigint();
   const totalNs = Number(t1 - t0);
-  const nsToMs = 1e6; //convert nanoseconds to milliseconds for percentiles
+  const nsToMs = 1e6;
 
-  //percentile helper
   const pct = (xs, p) => {
     if (!xs.length) {
       return 0;

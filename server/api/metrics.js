@@ -10,10 +10,9 @@ class LatencyRing {
     this.idx = (this.idx + 1) % this.cap;
     this.len = Math.min(this.len + 1, this.cap);
   }
-  // Returns sorted copy - len ≤ cap
+
   sorted() {
     const a = Array.from(this.buf.slice(0, this.len));
-    //provide comparator - sort numerically
     a.sort((x, y) => x - y);
     return a;
   }
@@ -32,7 +31,7 @@ class RollingQps {
     this.size = windowSec;
     this.buckets = new Uint32Array(this.size);
     this.epochSec = Math.floor(Date.now() / 1000);
-  } 
+  }
   shift(now) {
     const nowSec = Math.floor(now / 1000);
     let diff = nowSec - this.epochSec;

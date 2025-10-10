@@ -5,7 +5,6 @@ export default function Book({ poller, refreshBook }) {
   const [depth, setDepth] = useState(10);
   const [book, setBook] = useState({ buys: [], sells: [] });
 
-  // GET /book?depth=N
   const fetchBook = (d) => {
     return axios.get('/book', { params: { depth: d}})
       .then((res) => {
@@ -19,7 +18,6 @@ export default function Book({ poller, refreshBook }) {
       })
   };
 
-  // DELETE /orders/:id?side=buy|sell
   const handleCancel = (orderId, side) => {
     axios.delete(`/orders/${orderId}`, { params: { side}})
       .then(() => {
@@ -30,20 +28,16 @@ export default function Book({ poller, refreshBook }) {
       })
   }
 
-  // Refetch when admin reset or ui user depth adjustment
   useEffect(() => {
     fetchBook(depth);
   }, [depth, refreshBook]);
 
-  // Background polling driven by App - calls fetchBook(depth) every second
-  // clean up function - used on second call to useEffect after load
   useEffect(() => {
     return poller(() => {
       return fetchBook(depth);
     })
   }, [depth, poller, refreshBook]);
 
-  // Helper to render one side (buys or sells)
 const renderSide = function(title, levels, side) {
 
     return (
@@ -65,7 +59,6 @@ const renderSide = function(title, levels, side) {
                 const orders = Array.isArray(lvl.orders) ? lvl.orders : [];
                 const totalQty = orders.reduce((sum, o) => sum + (o.qty || 0), 0);
 
-                // most recent = last in FIFO array
                 const mostRecent = orders[orders.length - 1];
 
                 return (

@@ -15,11 +15,9 @@ function clearFile(file) {
 
 describe('Server API', () => {
 
-    //global access
     let app;
     let db;
 
-    // helper runners
     beforeEach(() => {
       process.env.DB_FILE = DB_FILE;
       db = open({ filename: DB_FILE });
@@ -57,7 +55,7 @@ describe('Server API', () => {
         db.insertOrder({ side: 'buy', price: 100 - i, qty: 1, filled: 1, status: 'open', ts: Date.now(), clientOrderId: String(i + 1)});
       }
 
-      buildMemory(app.eng, app.db); //update memory
+      buildMemory(app.eng, app.db);
 
       return request(app).get('/book?depth=2').expect(200)
         .then(res => {
@@ -66,10 +64,9 @@ describe('Server API', () => {
     });
     test('GET /metrics returns metrics snapshot with open order count', () => {
 
-      //seed order in db
       db.insertOrder({side: 'sell', price: 100, qty: 5, filled: 5, status: 'open', ts: Date.now(), clientOrderId: '1'});
 
-      buildMemory(app.eng, app.db); //update memory
+      buildMemory(app.eng, app.db);
 
       return request(app).get('/metrics').expect(200)
         .then(res => {
@@ -93,10 +90,10 @@ describe('Server API', () => {
   describe('integration tests', () => {
 
     test('rebuild restores memory from DB', () => {
-      //seed order in db
+
       db.insertOrder({ side: 'buy', price: 100, qty: 10, filled: 10, status: 'open', ts: Date.now(), clientOrderId: '1'});
 
-      let app2 = makeApp(db); //new instance, same database for rebuild
+      let app2 = makeApp(db);
 
       return request(app2).get('/book')
         .expect(200)
@@ -163,26 +160,20 @@ describe('Server API', () => {
         .send({side: 'sell', price: 101, qty: 10, type: 'limit', clientOrderId: '1'})
         .expect(201)
         .then(() => {
-          // 2. Post a market buy order (taker)
           return request(app).post('/orders')
             .send({side: 'buy', price: null, qty: 20, type: 'market', clientOrderId: '2' })
             .expect(201);
         })
         .then((res) => {
-          // Verify API response
           expect(res.body.filled).toBe(10);
           expect(res.body.remaining).toBe(10);
-
-          // Verify market order does not rest in memory - qty cancelled
           expect(app.eng.book.getBook().buys.length).toBe(0);
 
-          // Verify database reflects trade
           const trades = db.getRecentTrades(1);
           expect(trades.length).toBe(1);
           expect(trades[0].price).toBe(101);
           expect(trades[0].qty).toBe(10);
 
-          // Verify both orders updated - status limit order filled, market cancelled
           const s = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '1'").get();
           const b = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '2'").get();
           expect(s.filled).toBe(10);
@@ -197,33 +188,27 @@ describe('Server API', () => {
         .send({ side: 'buy', price: 100, qty: 15, type: 'limit', clientOrderId:'1' })
         .expect(201)
         .then(res => {
-          // response to client
           expect(res.body.filled).toBe(0);
           expect(res.body.remaining).toBe(15);
 
-          // verify in memory
           const book1 = app.eng.book.getBook();
           expect(book1.buys.length).toBe(1);
           expect(book1.buys[0].price).toBe(100);
           expect(book1.buys[0].orders[0].qty).toBe(15);
 
-          // Incoming SELL @99 x7 → crosses best bid 100
           return request(app).post('/orders')
             .send({ side: 'sell', price: 99, qty: 7, type: 'limit', clientOrderId: '2' })
             .expect(201);
         })
         .then(res2 => {
-          // taker filled (7), remaining 0
           expect(res2.body.filled).toBe(7);
           expect(res2.body.remaining).toBe(0);
 
-          // trade recorded at maker price = 100
           const trades = db.getRecentTrades(1);
           expect(trades.length).toBe(1);
           expect(trades[0].price).toBe(100);
           expect(trades[0].qty).toBe(7);
 
-          // DB states:
           const maker = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '1'").get();
           const taker = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '2'").get();
           expect(maker.qty).toBe(8);
@@ -234,7 +219,6 @@ describe('Server API', () => {
           expect(taker.filled).toBe(7);
           expect(taker.status).toBe('filled');
 
-          // maker rests with updated qty @100
           const book2 = app.eng.book.getBook();
           expect(book2.buys.length).toBe(1);
           expect(book2.buys[0].price).toBe(100);
@@ -242,7 +226,6 @@ describe('Server API', () => {
       });
     });
     test('lifecycle: non-crossing limits → crossing trade → cancel → metrics check', () => {
-      // non-crossing: BUY 100x5, SELL 105x5
       return request(app).post('/orders')
         .send({ side: 'buy', price: 100, qty: 5, type: 'limit', clientOrderId: '1' })
         .expect(201)
@@ -251,16 +234,15 @@ describe('Server API', () => {
           .expect(201)
         )
         .then(() => {
-          // No trades
+
           expect(db.getRecentTrades(1).length).toBe(0);
 
-          // crossing order: MARKET BUY x5 hits best ask 105
           return request(app).post('/orders')
             .send({ side: 'buy', price: null, qty: 5, type: 'market', clientOrderId: '3' })
             .expect(201);
         })
         .then(res => {
-          // market taker filled fully
+
           expect(res.body.filled).toBe(5);
           expect(res.body.remaining).toBe(0);
 
@@ -268,25 +250,22 @@ describe('Server API', () => {
           expect(trade.price).toBe(105);
           expect(trade.qty).toBe(5);
 
-          // SELL 105 filled
           const s = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '2'").get();
           expect(s.status).toBe('filled');
           expect(s.qty).toBe(0);
           expect(s.filled).toBe(5);
 
-          // Cancel resting BUY 100
           const buyId = db.raw.prepare("SELECT id FROM orders WHERE clientOrderId = '1'").get().id;
           return request(app).delete(`/orders/${buyId}`).query({ side: 'buy' }).expect(204);
         })
         .then(() => {
-          // buy 100 removed from book - status cancelled
+
           const b = db.raw.prepare("SELECT * FROM orders WHERE clientOrderId = '1'").get();
           expect(b.status).toBe('cancelled');
 
           const book = app.eng.book.getBook();
           expect(book.buys.length).toBe(0);
 
-          // metrics counts
           const metrics = app.metrics.snapshot({ bestBid: app.eng.book.bestBid(), bestAsk: app.eng.book.bestAsk(), openOrders: 0 });
           expect(metrics.bestBid).toBe(null);
           expect(metrics.bestAsk).toBe(null);

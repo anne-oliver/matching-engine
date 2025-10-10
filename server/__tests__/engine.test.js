@@ -206,11 +206,11 @@ describe('MatchingEngine', () => {
 
       test('trades array capped at 10k', () => {
         const eng = new MatchingEngine();
-        // seed sell side
+
         for (let i = 0; i < 10050; i++) {
           eng.processOrder(limit(10000 + i, 'sell', 100, 1));
         }
-        // take with market buys
+
         for (let i = 0; i < 10050; i++) {
           eng.processOrder(market(20000 + i, 'buy', 1));
         }
@@ -236,20 +236,16 @@ describe('MatchingEngine', () => {
       expect(calls.rested).toHaveLength(1);
       eng.process(limit(2,  'buy',  101, 7));
 
-      // empty book ontrade
       expect(eng.book.bestAsk()).toBeUndefined();
       expect(eng.book.bestBid()).toBeUndefined();
 
-      // Hooks
       expect(calls.trade).toHaveLength(1);
       expect(calls.trade[0]).toMatchObject({ price: 100, qty: 7, sell:{id:1}, buy:{id:2} });
       expect(calls.updated).toHaveLength(2);
 
-      // maker qty->0, filled 7; taker qty->0, filled 7
       const ids = calls.updated.map(u => [u.id, u.qty, u.filled]).sort((a,b)=>a[0]-b[0]);
       expect(ids).toEqual([[1, 0, 7], [2, 0, 7]]);
 
-      // empty book no cancels
       expect(calls.cancelled).toHaveLength(0);
 
     });
@@ -262,18 +258,16 @@ describe('MatchingEngine', () => {
 
       eng.process(limit(1, 'sell', 101, 30));
       eng.process(limit(2, 'sell', 102, 30));
-      eng.process(limit(3,  'buy',  110, 100)); // walks 101 then 102, residual 40 @ 110 rests
+      eng.process(limit(3,  'buy',  110, 100));
 
       const trades = eng.getTrades();
       expect(trades).toHaveLength(2);
       expect(trades[0]).toMatchObject({ price: 101, qty: 30 });
       expect(trades[1]).toMatchObject({ price: 102, qty: 30 });
 
-      // Ask side empty (both popped), residual buy added
       expect(eng.book.bestAsk()).toBeUndefined();
       expect(eng.book.bestBid()).toBe(110);
 
-      // buy residual rests
       expect(calls.rested[calls.rested.length - 1]).toMatchObject({ id: 3, side: 'buy', qty: 40, price: 110 });
 
     });
@@ -287,7 +281,6 @@ describe('MatchingEngine', () => {
         onUpdated:   (o) => calls.updated.push({ id: o.id, qty: o.qty, filled: o.filled })
       });
 
-      // Only 10 bid liquidity; market sell for 25
       eng.process(limit(1, 'buy', 100, 10));
       const mktAsk = market(2, 'sell', 25);
       eng.process(mktAsk);
@@ -296,15 +289,11 @@ describe('MatchingEngine', () => {
       expect(trades).toHaveLength(1);
       expect(trades[0]).toMatchObject({ price: 100, qty: 10, buy:{id:1}, sell:{id:2} });
 
-      // Empty book after trade
       expect(eng.book.bestBid()).toBeUndefined();
 
-      // onUpdated called for maker and taker after the trade
-      // maker qty->0, taker qty->15, taker filled 10
       const upd = calls.updated.sort((a,b)=>a.id-b.id);
       expect(upd).toEqual([{ id: 1, qty: 0,  filled: 10 }, { id: 2, qty: 15, filled: 10 }]);
 
-      // No more liquidity → market remainder cancelled; engine passes leftover qty to onCancelled
       expect(calls.cancelled).toEqual([{ id: 2, side: 'sell', qty: 15 }]);
 
     });

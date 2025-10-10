@@ -4,7 +4,6 @@ import axios from 'axios';
 export default function Metrics({ poller, refreshMetrics }) {
   const [data, setData] = useState(null);
 
-  //get metrics from server and update metrics component
   useEffect(() => {
     return poller(() => {
       return axios.get('/metrics')

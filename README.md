@@ -1,48 +1,81 @@
 # Matching Engine
 
-A price-time FIFO matching engine for limit and market orders with partial fills. In-memory skip-list order book, SQLite persistence, RESTful API, and a React UI with live book/trades/metrics.
+A price–time FIFO matching engine for limit and market orders with partial fills.
+In-memory skip-list order book, SQLite persistence, RESTful API, and a React UI with live order book, trades, and performance metrics.
+Developed as a solo project to demonstrate full-stack systems design — from data structures and API design to containerized deployment and testing.
+
+🎥 [Watch the UI demo (MP4)](https://github.com/anne-oliver/matching-engine/releases/download/v1.0.0/matching-engine-demo.mp4)
+See [`SYSTEM_DESIGN.md`](./SYSTEM_DESIGN.md) for a deeper technical explanation *(in progress)*.
 
 ## Features
 
 - Price–time FIFO order matching with partial fills
-- Limit and market orders, cancel by order ID
-- Skip list-backed order book + linked-list per price
+- Limit and market orders; cancel by order ID
+- Skip list–backed order book + linked-list per price level
 - SQLite persistence (orders + trades)
-- Express REST API with /orders, /book, /trades, /metrics endpoints
-- React UI with polling
-- Admin reset endpoint for dev
-- Deterministic workloads & fuzz tests
-- Runtime metrics: open orders, trades, cancels, throughput, latency quantiles
+- Express REST API: `/orders`, `/book`, `/trades`, `/metrics`
+- React UI with polling for live updates
+- Deterministic workload generators & invariant checks for correctness testing
+- Runtime metrics: open orders, trades, cancels, throughput, latency quantiles (p50/p95/p99)
+
+---
 
 ## Tech Stack
 
-- Frontend: React 19, Axios, Webpack
-- Backend: Node.js (Express, Pino), SQLite (better-sqlite3)
-- Testing: Jest + Supertest (unit, integration, end-to-end)
-- Containerization: Docker (multi-stage build)
-- CI: GitHub Actions (lint + tests; image publish to GHCR)
-- Deployment: AWS EC2 (Dockerized backend + React client)
+- **Frontend:** React 19 · Axios · Webpack
+- **Backend:** Node.js (Express, Pino) · SQLite (`better-sqlite3`)
+- **Testing:** Jest + Supertest (unit, integration, end-to-end)
+- **Containerization:** Docker (multi-stage build)
+- **CI/CD:** GitHub Actions (lint + tests · image publish to GHCR)
+- **Deployment:** AWS EC2 (Dockerized backend + React client)
+
+---
 
 ## Architecture
 
-- Engine - orchestrates matching, invokes hooks (rest, update, trade, cancel)
-- Order Book - skip list of price levels, linked-list queues per price
-- Database - SQLite schema + persistence
-- API - Express routes: /orders, /book, /trades, /metrics, health/version
-- Metrics - latency ring buffer, rolling QPS, counters
-- Client - React UI components: Book, Trades, Metrics, OrderForm, admin reset
+- **Engine** – orchestrates matching and invokes hooks (`onRested`, `onUpdated`, `onTrade`, `onCancelled`)
+- **Order Book** – skip list of price levels with linked-list FIFO queues per price
+- **Database** – SQLite schema for order/trade persistence
+- **API** – Express routes: `/orders`, `/book`, `/trades`, `/metrics`, `/health`
+- **Metrics** – rolling QPS counter + latency ring buffer (p50/p95/p99) for match times
+- **Client** – React UI components: OrderForm, Book, Trades, Metrics, AdminReset
 
-## Algorithm Time Complexity:
+---
 
-- Skip-list across price levels (expected O(log N) level insert/remove)
-- FIFO linked list - per-level queue at a single price (O(1) push/peek/pop/remove node)
-- idIndex gives O(1) removeOrderById via an id→node index
+## Metrics & Workloads
 
-## Demo
+The engine records match latency and throughput using high-resolution timers.
+Workload scripts simulate thousands of orders per mode (`steady`, `walk-book`, `cancel-heavy`, etc.) and validate engine invariants:
 
-🎥 [Watch the UI demo (MP4)](https://github.com/anne-oliver/matching-engine/releases/download/v1.0.0/matching-engine-demo.mp4)
+- **FIFO ordering** within price levels
+- **No crossed book at rest** (bestBid < bestAsk)
+- **Quantity conservation** (submitted = traded + remaining)
+- **Non-negative quantities and accurate cancellation semantics**
 
-A 2-minute walkthrough of the order book, trades, and metrics in the React UI.
+Example output (steady workload, 10k orders):
 
-## License
-This project is open-source under the [MIT License](./LICENSE).
+```json
+
+{
+  "mode": "steady",
+  "N": 100000,
+  "latency_ms": {
+    "avg": 0.001,
+    "p50": 0,
+    "p95": 0.001,
+    "p99": 0.005
+  },
+  "throughput_ops_sec": 1149638,
+  "invariants": {
+    "fifoOk": true,
+    "crossedOk": true,
+    "priceOrderOk": true,
+    "nonNegativeOk": true,
+    "quantityConservationOk": true,
+    "cancelSemanticsOk": true
+  },
+  "depth": {
+    "buys": 5,
+    "sells": 5
+  }
+}

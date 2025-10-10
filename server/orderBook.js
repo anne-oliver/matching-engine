@@ -1,5 +1,3 @@
-// Per price: LevelQueue (linked FIFO) → O(1) peek/shift/cancel.
-// Across prices: PriceLevels (skip list) → expected O(log n) ops.
 class ListNode {
   constructor(order) {
     this.order = order;
@@ -65,7 +63,6 @@ class LevelQueue {
   }
 }
 
-// SkipListNode holds one price level (price, queue, forward links)
 class SkipListNode {
   constructor(price, levelQueue, level = 1) {
     this.price = price;
@@ -116,24 +113,22 @@ class PriceLevels {
         x = x.forward[lvl];
       }
     }
-    x = x.forward[0]; //possib;e target price
+    x = x.forward[0];
     return (x && x.price === price) ? x.queue : undefined;
   }
 
   #upsertLevel(price) {
-    const { update, candidate } = this.#findUpdate(price); //update array and possible candidate
+    const { update, candidate } = this.#findUpdate(price);
     if (candidate && candidate.price === price) {
-      return candidate; //price level already exists - return skip list node
+      return candidate;
     }
 
-    const lvl = this.#randomLevel(); //otherwise get random level
-    //if level is greater than highest level of current price levels
+    const lvl = this.#randomLevel();
     if (lvl > this.levels) {
-      //for each level
       for (let i = this.levels; i < lvl; i++) {
         update[i] = this.head;
       }
-      this.levels = lvl; //new highest level
+      this.levels = lvl;
     }
 
     const node = new SkipListNode(price, new LevelQueue(), lvl);
@@ -210,7 +205,6 @@ class SideBook {
   forEachLevel(fn) { this.levels.forEach(fn); }
 }
 
-// idIndex maps order.id → ListNode for O(1) cancel/update
 class OrderBook {
   constructor() {
     this.bids = new SideBook({ isBid: true });
