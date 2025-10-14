@@ -6,8 +6,6 @@ Developed as a solo project to demonstrate full-stack systems design — from da
 
 🎥 [Watch the UI demo (MP4)](https://github.com/anne-oliver/matching-engine/releases/download/v1.0.0/matching-engine-demo.mp4)
 
-See [`SYSTEM_DESIGN.md`](./SYSTEM_DESIGN.md) for a deeper technical explanation *(in progress)*.
-
 ## Features
 
 - Price–time FIFO order matching with partial fills
