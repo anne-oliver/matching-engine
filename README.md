@@ -1,8 +1,6 @@
 # Matching Engine
 
-A price–time FIFO matching engine for limit and market orders with partial fills.
-In-memory skip-list order book, SQLite persistence, RESTful API, and a React UI with live order book, trades, and performance metrics.
-Developed as a solo project to demonstrate full-stack systems design — from data structures and API design to containerized deployment and testing.
+A price–time FIFO matching engine for limit and market orders with partial fills. In-memory skip-list order book, SQLite persistence, RESTful API, and a React UI with live order book, trades, and performance metrics. Developed as a solo project to demonstrate full-stack systems design — from data structures and API design to containerized deployment and testing.
 
 🎥 [Watch the UI demo (MP4)](https://github.com/anne-oliver/matching-engine/releases/download/v1.0.0/matching-engine-demo.mp4)
 
@@ -36,8 +34,17 @@ Developed as a solo project to demonstrate full-stack systems design — from da
 - **Order Book** – skip list of price levels with linked-list FIFO queues per price
 - **Database** – SQLite schema for order/trade persistence
 - **API** – Express routes: `/orders`, `/book`, `/trades`, `/metrics`, `/health`
-- **Metrics** – rolling QPS counter + latency ring buffer (p50/p95/p99) for match times
+- **Metrics** – rolling QPS counter + latency window (p50/p95/p99) for match times
 - **Client** – React UI components: OrderForm, Book, Trades, Metrics, AdminReset
+
+---
+
+## Order Book - Algorithm Time Complexities:
+
+- Skip-list across price levels: expected O(log N) insert/remove/lookup
+- Per-level FIFO queue: O(1) push/peek/pop/remove by node
+- removeOrderById: expected O(log N) overall (O(1) id lookup + O(log N) level lookup/cleanup).
+- OrderBook/SideBook methods are wrappers; they keep the same asymptotic bounds as underlying structure.
 
 ---
 

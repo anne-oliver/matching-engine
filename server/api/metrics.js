@@ -57,7 +57,6 @@ class RollingQps {
 
 class Metrics {
   constructor() {
-    this.uptimeSec = Date.now();
     this.ordersPlacedSession = 0;
     this.cancelsSession = 0;
     this.tradesSession = 0;
