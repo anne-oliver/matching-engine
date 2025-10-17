@@ -19,3 +19,10 @@ CREATE TABLE IF NOT EXISTS trades (
   FOREIGN KEY (buyOrderId) REFERENCES orders(id),
   FOREIGN KEY (sellOrderId) REFERENCES orders(id)
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+)
