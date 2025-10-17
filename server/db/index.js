@@ -35,10 +35,25 @@ function open({ filename=':memory:'} = {}) {
   const clearTrades = db.prepare('DELETE FROM trades');
   const clearOrders = db.prepare(`DELETE FROM orders`);
   const resetIdx = db.prepare(`DELETE FROM sqlite_sequence WHERE name IN ('orders','trades')`);
+  const insertUser = db.prepare(`
+    INSERT INTO users (username, password_hash, created_at)
+    VALUES (@username, @password_hash, @created_at)
+  `);
+  const getUserByUsername = db.prepare(`
+    SELECT * FROM users WHERE username = ?
+  `);
 
   return {
     //readiness check
     raw: db,
+    // auth: users
+    createUser({ username, password_hash, created_at }) {
+      const info = insertUser.run({ username, password_hash, created_at });
+      return Number(info.lastInsertRowid);
+    },
+    findUserByUsername(username) {
+      return getUserByUsername.get(username) || null;
+    },
     //insert order and return numeric id
     insertOrder(o) {
       const info = insertOrder.run({
