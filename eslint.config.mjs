@@ -1,45 +1,37 @@
 import js from "@eslint/js";
 import globals from "globals";
-import importPlugin from "eslint-plugin-import";
 
 export default [
   {
     ignores: [
       "**/node_modules/**",
-      "**/coverage/**",
       "**/dist/**",
-      "**/bundle*.js",
       ".git/**",
-      "**/eslint.config.*"
+      "**/eslint.config.*",
     ],
   },
 
-  // Base rules for JS
+  // Project JS
   {
-    files: ["**/*.{js,cjs,mjs}"],
+    files: ["**/*.js"],
     languageOptions: {
-      ecmaVersion: 2022,
+      ecmaVersion: "latest",
       sourceType: "commonjs",
       globals: globals.node,
     },
-    plugins: { import: importPlugin },
     ...js.configs.recommended,
     rules: {
-      ...js.configs.recommended.rules,
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-unused-vars": "error",
       eqeqeq: ["error", "always"],
       curly: ["error", "all"],
-      "import/no-unresolved": "off",
     },
   },
-  // Tests: enable Jest globals
+
+  // Jest tests
   {
     files: ["**/__tests__/**/*.js", "**/*.test.js"],
     languageOptions: {
       globals: { ...globals.node, ...globals.jest },
-    },
-    rules: {
-      "no-unused-vars": "off",
-    },
+    }
   },
 ];
