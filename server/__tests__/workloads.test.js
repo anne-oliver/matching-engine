@@ -10,7 +10,7 @@ describe('workloads: deterministic smoke', () => {
     expect(res.N).toBe(200);
 
     expect(res.invariants).toBeDefined();
-    for(const [k, v] of Object.entries(res.invariants)) {
+    for(const v of Object.values(res.invariants)) {
       expect(v).toBe(true);
     }
 

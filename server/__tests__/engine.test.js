@@ -1,6 +1,5 @@
 const { MatchingEngine } = require('../engine.js');
 const { Order } = require('../orders.js');
-const { open } = require('../db');
 
 const now = () => Date.now();
 const limit = (id, side, price, qty, filled = 0, ts = now(), clientId = id) => {
