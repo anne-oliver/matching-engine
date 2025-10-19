@@ -26,10 +26,3 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at BIGINT NOT NULL
 );
-
-CREATE TABLE sessions (
-  sid TEXT PRIMARY KEY,
-  sess TEXT NOT NULL,
-  expire INTEGER NOT NULL
-);
-
