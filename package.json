@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "NODE_ENV=test jest -runInBand",
+    "test": "cross-env NODE_ENV=test SESSION_SECRET=test-secret jest -runInBand",
     "client:dev": "webpack serve --mode development",
     "client:build": "webpack --mode production",
     "server:dev": "NODE_ENV=development nodemon server/api/server.js",
@@ -43,6 +43,7 @@
     "@babel/preset-react": "^7.27.1",
     "@eslint/js": "^9.33.0",
     "babel-loader": "^10.0.0",
+    "cross-env": "^10.1.0",
     "css-loader": "^7.1.2",
     "dotenv-webpack": "^8.1.1",
     "eslint": "^9.33.0",
