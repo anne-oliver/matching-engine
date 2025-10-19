@@ -17,9 +17,17 @@ const { Order } = require('../orders')
 const isTest = process.env.NODE_ENV === 'test';
 const logger = pino({ level: isTest ? 'silent' : (process.env.LOG_LEVEL || 'info') });
 
+// Auth routes
+// const bcrypt = require('bcrypt');
+// const BCRYPT_COST = Number(process.env.BCRYPT_COST)
+
 // database connection
 const dbFilename = process.env.DB_FILE || ':memory:'; // memory fallback
 const db = open({ filename: dbFilename });
+
+// Session packages
+const session = require('express-session');
+const BetterSQLiteStore = require('better-sqlite3-session-store')(session);
 
 // Memory build helper
 const buildMemory = (eng, db) => {
@@ -68,8 +76,26 @@ const makeApp = function(db) {
 
   // Per-request timing for logs/metrics
   app.use((req, _res, next) => { req.reqStart = Date.now(); next(); });
+
   // Static files
   app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+  // Session setup
+  app.use(session({
+    store: new BetterSQLiteStore({
+      client: db.raw,
+      expired: { clear: true, intervalMS: 900000 }
+    }),
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 3600000,
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production'
+    }
+  }));
 
   // Rebuild in-memory book from DB on reboot
   buildMemory(eng, db);
@@ -140,7 +166,6 @@ const makeApp = function(db) {
         return Math.abs(px * 100 - cents) < EPS;
       };
 
-
       // Validate inputs
       if (!Number.isInteger(body.qty) || body.qty <= 0) {
           return res.status(400).json({ error: 'qty must be positive integer' });
@@ -195,7 +220,7 @@ const makeApp = function(db) {
       });
 
     } catch(err) {
-        logger.error({ err}, 'POST /orders failed');
+        logger.error({ err }, 'POST /orders failed');
         return res.status(500).json({ error: 'internal server error'});
     }
   });
