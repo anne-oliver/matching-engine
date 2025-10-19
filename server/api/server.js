@@ -18,6 +18,7 @@ const isTest = process.env.NODE_ENV === 'test';
 const logger = pino({ level: isTest ? 'silent' : (process.env.LOG_LEVEL || 'info') });
 
 // Auth routes
+// const { authRequired } = require('./middleware/auth.js');
 // const bcrypt = require('bcrypt');
 // const BCRYPT_COST = Number(process.env.BCRYPT_COST)
 
@@ -81,11 +82,15 @@ const makeApp = function(db) {
   app.use(express.static(path.join(__dirname, '../../client/dist')));
 
   // Session setup
-  app.use(session({
-    store: new BetterSQLiteStore({
+  const store = process.env.NODE_ENV === 'test'
+  ? new session.MemoryStore()
+  : new BetterSQLiteStore({
       client: db.raw,
-      expired: { clear: true, intervalMS: 900000 }
-    }),
+      expired: { clear: true, intervalMs: 900000 }, // 15 min
+  });
+
+  app.use(session({
+    store,
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -152,6 +157,9 @@ const makeApp = function(db) {
       next();
     });
   }
+
+  // app.post('/registration')
+  // app.post('/login')
 
   // ---- POST /orders  ----
   app.post('/orders', function (req, res) {
