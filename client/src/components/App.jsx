@@ -4,8 +4,10 @@ import OrderForm from './OrderForm.jsx';
 import Book from './Book.jsx';
 import Trades from './Trades.jsx';
 import Metrics from './Metrics.jsx';
+import { useAuth } from './AuthContext.jsx';
 
 export default function App() {
+  const { logout } = useAuth();
   const [bookRefresh, setBookRefresh] = useState(false);
   const [tradesRefresh, setTradesRefresh] = useState(false);
   const [metricsRefresh, setMetricsRefresh] = useState(false);
@@ -21,6 +23,13 @@ export default function App() {
       .catch((err) => {
         console.error('admin reset error', err);
       })
+  };
+
+  const handleLogout = () => {
+    logout()
+      .catch((err) => {
+        console.error('logout failed', err)
+      });
   };
 
   const refreshBookHandler = () => setBookRefresh((b) => !b);
@@ -67,6 +76,9 @@ export default function App() {
       <div className="toolbar">
         <button className="btn sm" onClick={handleAdminReset}>
           Reset (Clear DB)
+        </button>
+        <button className="btn sm logout" onClick={handleLogout}>
+          Logout
         </button>
       </div>
       <div className="app-shell">
