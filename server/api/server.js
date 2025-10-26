@@ -17,7 +17,7 @@ const { Order } = require('../orders');
 const isTest = process.env.NODE_ENV === 'test';
 const logger = pino({ level: isTest ? 'silent' : (process.env.LOG_LEVEL || 'info') });
 
-// Auth routes
+// Auth
 const { authRequired } = require('../middleware/auth.js');
 const bcrypt = require('bcryptjs');
 const BCRYPT_COST = Number(process.env.BCRYPT_COST);
@@ -76,7 +76,10 @@ const makeApp = function (db) {
   app.use(cors());
 
   // Per-request timing for logs/metrics
-  app.use((req, _res, next) => { req.reqStart = Date.now(); next(); });
+  app.use((req, _res, next) => {
+    req.reqStart = Date.now();
+    next();
+  });
 
   // Static files
   app.use(express.static(path.join(__dirname, '../../client/dist')));
@@ -158,7 +161,8 @@ const makeApp = function (db) {
       next();
     });
   }
-
+  
+  // ---- POST /registration ----
   app.post('/registration', (req, res) => {
     try {
       const { username, password } = req.body;
