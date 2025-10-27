@@ -25,4 +25,4 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   created_at BIGINT NOT NULL
-)
+);

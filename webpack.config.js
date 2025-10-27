@@ -30,7 +30,7 @@ module.exports = {
     historyApiFallback: true,
     proxy: [
       {
-        context: ['/orders', '/metrics', '/trades', '/admin', '/book'],
+        context: ['/orders', '/metrics', '/trades', '/admin', '/book', '/me', '/login', '/logout', '/registration'],
         target: 'http://localhost:3000',
         changeOrigin: true,
       }

@@ -20,6 +20,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
+  justify-content: space-between;
 }
 
 .btn {
@@ -47,6 +48,10 @@ body {
 
 .section-title {
   margin: 0 0 var(--gap) 0;
+}
+
+.logout {
+  margin-left: auto;
 }
 
 /* ---------- Controls ---------- */
@@ -187,6 +192,31 @@ body {
   font-weight: 600; margin-left: 6px;
 }
 
+/* ---------- Auth Login ---------- */
+
+.form-col {
+  display: flex; /* center login */
+  flex-direction: column; /* vertica alignment */
+  align-items: center; /* center login */
+  gap: var(--gap); /* gap between login title and username */
+  max-width: 400px;
+  margin: 30vh auto; /* vertically centered, horizontally centered */
+  padding: 20px;
+}
+
+.form-col form {
+  display: flex; /* formats form components */
+  flex-direction: column; /* also formats form components */
+  gap: var(--gap-sm); /* gap between username and password */
+  width: 70%;
+  padding: 15px;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--gap);
+}
 
 /* ---------- layout for < 720px ---------- */
 @media (max-width: 720px) {

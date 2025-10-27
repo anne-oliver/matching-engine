@@ -11,38 +11,47 @@ const { open } = require('../db');
 const { MatchingEngine } = require('../engine');
 const { OrderBook } = require('../orderBook');
 const { Metrics } = require('./metrics');
-const { Order } = require('../orders')
+const { Order } = require('../orders');
 
 //.env
 const isTest = process.env.NODE_ENV === 'test';
 const logger = pino({ level: isTest ? 'silent' : (process.env.LOG_LEVEL || 'info') });
 
+// Auth
+const { authRequired } = require('../middleware/auth.js');
+const bcrypt = require('bcryptjs');
+const BCRYPT_COST = Number(process.env.BCRYPT_COST);
+
 // database connection
 const dbFilename = process.env.DB_FILE || ':memory:'; // memory fallback
 const db = open({ filename: dbFilename });
 
+// Session packages
+const session = require('express-session');
+const BetterSQLiteStore = require('better-sqlite3-session-store')(session);
+
 // Memory build helper
 const buildMemory = (eng, db) => {
   const orders = db.getOpenOrders();
-    if (orders.length > 0) {
-      for (const o of orders) {
+  if (orders.length > 0) {
+    for (const o of orders) {
       // Markets never rest; DB encodes them with null price
-        const type = (o.price === null) ? 'market' : 'limit';
-        eng.book.addOrder(new Order(o.id, o.side, type, o.price, o.qty, o.filled, o.ts, o.clientOrderId));
+      const type = (o.price === null) ? 'market' : 'limit';
+      eng.book.addOrder(new Order(o.id, o.side, type, o.price, o.qty, o.filled, o.ts, o.clientOrderId));
     }
   }
 };
 
-const makeApp = function(db) {
+const makeApp = function (db) {
   const metrics = new Metrics();
   const eng = new MatchingEngine({
     onRested(order) {
-        logger.info({ id: order.id, side: order.side, price: order.price, qty: order.qty, filled: order.filled }, `rested on ${new Date().toISOString()}`)
+      logger.info({ id: order.id, side: order.side, price: order.price, qty: order.qty, filled: order.filled }, `rested on ${new Date().toISOString()}`);
     },
-    onUpdated: function (order) {
+    onUpdated(order) {
       db.updateOrderRemaining(order.id, order.qty, order.filled);
     },
-    onTrade: function (t) {
+    onTrade(t) {
       metrics.markTrade(1);
       db.recordTrade({
         price: t.price,
@@ -67,15 +76,42 @@ const makeApp = function(db) {
   app.use(cors());
 
   // Per-request timing for logs/metrics
-  app.use((req, _res, next) => { req.reqStart = Date.now(); next(); });
+  app.use((req, _res, next) => {
+    req.reqStart = Date.now();
+    next();
+  });
+
   // Static files
   app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+  // Session setup
+  const store = process.env.NODE_ENV === 'test'
+    ? new session.MemoryStore()
+    : new BetterSQLiteStore({
+        client: db.raw,
+        expired: { clear: true, intervalMs: 900000 }, // 15 min
+      });
+
+  const isHttps = process.env.HTTPS === 'true';
+
+  app.use(session({
+    store,
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 3600000,
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: isHttps
+    }
+  }));
 
   // Rebuild in-memory book from DB on reboot
   buildMemory(eng, db);
 
   // Clear helper fcn for dev admin
-  const clearAll = function() {
+  const clearAll = function () {
     db.clear();
     eng.book = new OrderBook();
     eng.trades = [];
@@ -85,10 +121,11 @@ const makeApp = function(db) {
 
   // Liveness
   app.get('/', (req, res) => {
-    return res.status(200).send('OK');
+    res.redirect(302, '/health');
   });
+
   app.get('/health', (req, res) => {
-    return res.status(200).send('OK')
+    return res.status(200).send('OK');
   });
 
   // Readiness
@@ -127,8 +164,83 @@ const makeApp = function(db) {
     });
   }
 
-  // ---- POST /orders  ----
-  app.post('/orders', function (req, res) {
+  // ---- POST /registration ----
+  app.post('/registration', (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (typeof username !== 'string' || username.trim().length < 5) {
+        return res.status(400).json({ error: 'username must be at least 5 characters' });
+      }
+      if (typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ error: 'password must be at least 8 characters' });
+      }
+
+      const existing = db.findUserByUsername(username);
+      if (existing) {
+        return res.status(409).json({ error: 'username taken. please choose another one' });
+      }
+
+      // Wrap bcrypt.hash in a Promise chain
+      bcrypt.hash(password, BCRYPT_COST)
+        .then(hash => {
+          const uid = db.createUser({
+            username,
+            password_hash: hash,
+            created_at: Date.now(),
+          });
+          req.session.user = { id: uid, username };
+          res.status(201).json({ user: { id: uid, username } });
+        })
+        .catch(err => {
+          logger.error({ err }, 'registration hash failed');
+          res.status(500).json({ error: 'internal server error' });
+        });
+    } catch (err) {
+      logger.error({ err }, 'registration failed');
+      res.status(500).json({ error: 'internal server error' });
+    }
+  });
+
+  // ---- POST /login ----
+  app.post('/login', (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (typeof username !== 'string' || typeof password !== 'string') {
+        return res.status(400).json({ error: 'invalid payload' });
+      }
+
+      const user = db.findUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: 'invalid credentials' });
+      }
+
+      // bcrypt.compare also returns a Promise
+      bcrypt.compare(password, user.password_hash)
+        .then(ok => {
+          if (!ok) {
+            return res.status(401).json({ error: 'invalid credentials' });
+          }
+          req.session.user = { id: user.id, username: user.username };
+          res.json({ user: { id: user.id, username: user.username } });
+        })
+        .catch(err => {
+          logger.error({ err }, 'login compare failed');
+          res.status(500).json({ error: 'internal server error' });
+        });
+    } catch (err) {
+      logger.error({ err }, 'login failed');
+      res.status(500).json({ error: 'internal server error' });
+    }
+  });
+
+  // ---- GET /session ----
+  app.get('/me', authRequired, (req, res) => {
+    res.json({ user: req.session.user });
+  });
+
+  // ---- POST /orders ----
+  app.post('/orders', authRequired, (req, res) => {
     try {
       const body = req.body;
 
@@ -140,11 +252,10 @@ const makeApp = function(db) {
         return Math.abs(px * 100 - cents) < EPS;
       };
 
-
       // Validate inputs
       if (!Number.isInteger(body.qty) || body.qty <= 0) {
-          return res.status(400).json({ error: 'qty must be positive integer' });
-       }
+        return res.status(400).json({ error: 'qty must be positive integer' });
+      }
 
       if (body.type !== 'market') {
         if (typeof body.price !== 'number' || body.price <= 0) {
@@ -155,53 +266,50 @@ const makeApp = function(db) {
         }
       }
 
-    const now = Date.now(); //timestamp on order placement
+      const now = Date.now(); //timestamp on order placement
+      const order = new Order(
+        null,
+        body.side,
+        body.type,
+        body.price,
+        body.qty,
+        0,
+        now,
+        body.clientOrderId
+      );
 
-    const order = new Order(
-      null,
-      body.side,
-      body.type,
-      body.price,
-      body.qty,
-      0,
-      now,
-      body.clientOrderId
-    );
+      // Persist request before matching - returns id
+      let id = db.insertOrder({
+        side: order.side,
+        price: order.price,
+        qty: order.qty,
+        filled: 0,
+        status: 'open',
+        ts: now,
+        clientOrderId: order.clientOrderId
+      });
 
-    // Persist request before matching - returns id
-    let id = db.insertOrder({
-      side: order.side,
-      price: order.price,
-      qty: order.qty,
-      filled: 0,
-      status: 'open',
-      ts: now,
-      clientOrderId: order.clientOrderId
-    });
-
-    order.id = id; //assignment to obj - null sub
-
-    metrics.markOrder();
-    const t0 = process.hrtime.bigint();
-    eng.process(order);
-    const t1 = process.hrtime.bigint();
-    metrics.recordMatchMs(Number(t1 - t0) / 1e6);
-    // convert from nanoseconds to milliseconds
+      order.id = id; //assignment to obj - null sub
+      metrics.markOrder();
+      const t0 = process.hrtime.bigint();
+      eng.process(order);
+      const t1 = process.hrtime.bigint();
+      metrics.recordMatchMs(Number(t1 - t0) / 1e6);
+      // convert from nanoseconds to milliseconds
 
       return res.status(201).json({
         id: order.id,
         filled: order.filled,
         remaining: order.qty
       });
-
-    } catch(err) {
-        logger.error({ err}, 'POST /orders failed');
-        return res.status(500).json({ error: 'internal server error'});
+    } catch (err) {
+      logger.error({ err }, 'POST /orders failed');
+      return res.status(500).json({ error: 'internal server error' });
     }
   });
 
-    // ---- DELETE /orders/:id ----
-  app.delete('/orders/:id', function (req, res) {
+  // ---- DELETE /orders/:id ----
+  app.delete('/orders/:id', authRequired, (req, res) => {
     try {
       const id = Number(req.params.id);
       const side = req.query.side;
@@ -215,13 +323,13 @@ const makeApp = function(db) {
       db.cancelOrder(id, remaining);
       return res.sendStatus(204);
     } catch (err) {
-      logger.error({ err}, 'DELETE /orders failed');
-      return res.status(500).json({ error: 'internal server error'});
+      logger.error({ err }, 'DELETE /orders failed');
+      return res.status(500).json({ error: 'internal server error' });
     }
   });
 
   // ---- GET /book?depth=N ----
-  app.get('/book', function (req, res) {
+  app.get('/book', authRequired, (req, res) => {
     try {
       const MAX_DEPTH = 10;
       const depth = Number(req.query.depth ?? MAX_DEPTH);
@@ -242,26 +350,25 @@ const makeApp = function(db) {
       }
 
       return res.json({
-          buys: sliceLevels(snapshot.buys),
-          sells: sliceLevels(snapshot.sells)
+        buys: sliceLevels(snapshot.buys),
+        sells: sliceLevels(snapshot.sells)
       });
-
     } catch (err) {
-        logger.error({ err}, 'GET /book failed');
-        return res.status(500).json({ error: 'internal server error'});
+      logger.error({ err }, 'GET /book failed');
+      return res.status(500).json({ error: 'internal server error' });
     }
   });
 
-    // ---- GET /trades ----
-  app.get('/trades', function (req, res) {
+  // ---- GET /trades ----
+  app.get('/trades', authRequired, (req, res) => {
     try {
       const trades = db.getRecentTrades(15);
       const recentTrades = trades.map(t => ({
         price: t.price,
-        qty:   t.qty,
-        buy:   { id: t.buyOrderId },
-        sell:  { id: t.sellOrderId },
-        ts:    t.ts,
+        qty: t.qty,
+        buy: { id: t.buyOrderId },
+        sell: { id: t.sellOrderId },
+        ts: t.ts,
       }));
       return res.json(recentTrades);
     } catch (err) {
@@ -270,23 +377,19 @@ const makeApp = function(db) {
     }
   });
 
-    // ---- GET /metrics ----
-  app.get('/metrics', (req, res) => {
-
+  // ---- GET /metrics ----
+  app.get('/metrics', authRequired, (req, res) => {
     try {
       const bestBid = eng.book.bestBid();
       const bestAsk = eng.book.bestAsk();
 
       const book = eng.book.getBook();
-
       //returns array of objects for each side where each object is a price level with orders array of order objects
       const openOrders =
-      book.buys.reduce((sum, lvl) => sum + (lvl.orders?.length || 0), 0) +
-      book.sells.reduce((sum, lvl) => sum + (lvl.orders?.length || 0), 0);
-
+        book.buys.reduce((sum, lvl) => sum + (lvl.orders?.length || 0), 0) +
+        book.sells.reduce((sum, lvl) => sum + (lvl.orders?.length || 0), 0);
 
       return res.json(metrics.snapshot({ bestBid, bestAsk, openOrders }));
-
     } catch (err) {
       logger.error({ err }, 'GET /metrics failed');
       return res.status(500).json({ error: 'internal server error' });
@@ -295,12 +398,12 @@ const makeApp = function(db) {
 
   // ---- DEV-ONLY ADMIN ENDPOINTS ----
   if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_ADMIN === 'true') {
-    app.post('/admin/clear-db', (req, res) => {
+    app.post('/admin/clear-db', authRequired, (req, res) => {
       try {
         clearAll();
         return res.sendStatus(204);
       } catch (err) {
-        res.status(500).json({error: err.message});
+        res.status(500).json({ error: err.message });
       }
     });
   }
@@ -315,12 +418,18 @@ const makeApp = function(db) {
         return next();
       }
       res.sendFile(path.join(__dirname, '../../client/dist', 'index.html'));
-
     });
   }
 
+  // ---- POST /logout ----
+  app.post('/logout', (req, res) => {
+    if (req.session) {
+      req.session.destroy(() => res.sendStatus(204));
+    }
+  });
+
   return app;
-}
+};
 
 if (require.main === module) {
   const app = makeApp(db);
