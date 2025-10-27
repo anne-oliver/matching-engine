@@ -1,6 +1,6 @@
 function authRequired(req, res, next) {
-  
-  if (process.env.NODE_ENV === 'test') {
+
+  if (process.env.AUTH_BYPASS === 'true') {
     return next();
   }
   if (req.session && req.session.user) {
