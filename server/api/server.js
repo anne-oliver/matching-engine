@@ -92,6 +92,8 @@ const makeApp = function (db) {
         expired: { clear: true, intervalMs: 900000 }, // 15 min
       });
 
+  const isHttps = process.env.HTTPS === 'true';
+
   app.use(session({
     store,
     secret: process.env.SESSION_SECRET,
@@ -101,7 +103,7 @@ const makeApp = function (db) {
       maxAge: 3600000,
       httpOnly: true,
       sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production'
+      secure: isHttps
     }
   }));
 
@@ -161,7 +163,7 @@ const makeApp = function (db) {
       next();
     });
   }
-  
+
   // ---- POST /registration ----
   app.post('/registration', (req, res) => {
     try {
@@ -233,10 +235,7 @@ const makeApp = function (db) {
   });
 
   // ---- GET /session ----
-  app.get('/me', (req, res) => {
-    if (!req.session.user) {
-      return res.status(204).end();
-    }
+  app.get('/me', authRequired, (req, res) => {
     res.json({ user: req.session.user });
   });
 
