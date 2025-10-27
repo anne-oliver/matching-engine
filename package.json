@@ -8,12 +8,11 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "cross-env NODE_ENV=test SESSION_SECRET=test-secret jest -runInBand",
+    "test": "cross-env NODE_ENV=test AUTH_BYPASS=true jest --runInBand",
     "client:dev": "webpack serve --mode development",
     "client:build": "webpack --mode production",
     "server:dev": "NODE_ENV=development nodemon server/api/server.js",
     "server:start": "NODE_ENV=production node server/api/server.js",
-    "server:test": "NODE_ENV=test node server/api/server.js",
     "work:steady": "MODE=steady node server/performance/workloads.js",
     "work:steady:1e5": "MODE=steady N=100000 node server/performance/workloads.js",
     "work:walk": "MODE=walk-book node server/performance/workloads.js",
