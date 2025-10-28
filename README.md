@@ -85,3 +85,17 @@ Example output (steady workload, 10k orders):
     "sells": 5
   }
 }
+```
+---
+
+## Authentication
+
+Session-based user authentication is implemented using express-session and bcryptjs for password hashing. Protected routes require a valid session cookie gated by the authRequired middleware.
+
+- **Express Routes:** /registration, /login, /logout, /me
+- **Middleware:** authRequired enforces session access
+- **Storage:** better-sqlite3-session-store for persistent sessions and MemoryStore for test sessions
+- **Frontend:** AuthContext.jsx performs all authentication API requests (/me, /registration, /login, /logout) using Axios, updates the current user state, and toggles the context used in index.jsx to render either <App /> or <Login />; Login.jsx handles the login and registration form logic; App.jsx’s logout button ends the session by deleting the stored session ID
+- **Testing:** auth.test.js validates registration, login, session persistence, logout, and confirms authRequired gates access to requests via AUTH_BYPASS and req.session.user existence, using an in-memory SQLite database and MemoryStore sessions
+
+
