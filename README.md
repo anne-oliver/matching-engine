@@ -95,7 +95,7 @@ Session-based user authentication is implemented using express-session and bcryp
 - **Express Routes:** /registration, /login, /logout, /me
 - **Middleware:** authRequired enforces session access
 - **Storage:** better-sqlite3-session-store for persistent sessions and MemoryStore for test sessions
-- **Frontend:** AuthContext.jsx performs all authentication API requests (/me, /registration, /login, /logout) using Axios, updates the current user state, and toggles the context used in index.jsx to render either <App /> or <Login />; Login.jsx handles the login and registration form logic; App.jsx’s logout button ends the session by deleting the stored session ID
+- **Frontend:** AuthContext.jsx performs all authentication API requests (/me, /registration, /login, /logout) using Axios, updates the current user state, and toggles the context used in index.jsx to render either App or Login page; Login.jsx handles the login and registration form logic; App.jsx’s logout button ends the session by deleting the stored session ID
 - **Testing:** auth.test.js validates registration, login, session persistence, logout, and confirms authRequired gates access to requests via AUTH_BYPASS and req.session.user existence, using an in-memory SQLite database and MemoryStore sessions
 
 
