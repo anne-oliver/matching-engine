@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import useWebSocket from './WebSocket.jsx';
 
 export default function Trades({ poller, refreshTrades }) {
   const [trades, setTrades] = useState([]);
@@ -19,6 +20,12 @@ useEffect(() => {
 
   const list = Array.isArray(trades) ? trades.slice() : [];
   const timestamp = (ts) => ts ? new Date(ts).toLocaleTimeString() : '—';
+
+  // useWebSocket((msg) => {
+  //   if (msg.type === 'trade:new') {
+  //     setTrades((prev) => [...prev.slice(-15), msg.payload]);
+  //   }
+  // });
 
 
   return (

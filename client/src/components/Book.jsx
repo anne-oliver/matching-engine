@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import useWebSocket from './WebSocket.jsx';
 
 export default function Book({ poller, refreshBook }) {
   const [depth, setDepth] = useState(10);
@@ -27,6 +28,12 @@ export default function Book({ poller, refreshBook }) {
         console.error('failed to delete order', err);
       })
   }
+
+  useWebSocket((msg) => {
+    if (msg.type === 'book:update') {
+      fetchBook(depth);
+    }
+  });
 
   useEffect(() => {
     fetchBook(depth);
