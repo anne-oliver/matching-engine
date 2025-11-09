@@ -42,14 +42,27 @@ const buildMemory = (eng, db) => {
   }
 };
 
+// Broadcast helper
+const broadcast = (type, payload) => {
+  if (app.wss) {
+    for (const client of app.wss.clients) {
+      if (client.readyState === 1) {
+        client.send(JSON.stringify({ type, payload }));
+      }
+    }
+  }
+}
+
 const makeApp = function (db) {
   const metrics = new Metrics();
   const eng = new MatchingEngine({
     onRested(order) {
       logger.info({ id: order.id, side: order.side, price: order.price, qty: order.qty, filled: order.filled }, `rested on ${new Date().toISOString()}`);
+      broadcast('book:update', { side: order.side });
     },
     onUpdated(order) {
       db.updateOrderRemaining(order.id, order.qty, order.filled);
+      broadcast('book:update', { side: order.side });
     },
     onTrade(t) {
       metrics.markTrade(1);
@@ -60,10 +73,12 @@ const makeApp = function (db) {
         sellId: t.sell.id,
         ts: t.ts
       });
+      broadcast('trade:new', t);
     },
     onCancelled(order) {
       metrics.markCancel(1);
       db.cancelOrder(order.id, order.qty);
+      broadcast('book:update', { side: order.side });
     }
   });
 
@@ -431,10 +446,27 @@ const makeApp = function (db) {
   return app;
 };
 
+// Dev + Production Spin Up:
 if (require.main === module) {
   const app = makeApp(db);
-  const port = Number(process.env.PORT) || 3000;
-  app.listen(port, () => console.log(`Server listening on ${port}`));
+  const port = process.env.PORT
+  const server = app.listen(port, () => {
+    console.log(`Server listening on ${port}`);
+  });
+
+  // ---- WebSocket Server ----
+  const { WebSocketServer } = require('ws');
+  const wss = new WebSocketServer({ server });
+  app.wss = wss;
+
+  wss.on('connection', (ws) => {
+    console.log('WebSocket connected');
+
+    ws.on('close', () => {
+      console.log('WebSocket disconnected');
+    });
+  });
+
 }
 
 module.exports = { makeApp, buildMemory };
