@@ -42,19 +42,14 @@ const buildMemory = (eng, db) => {
   }
 };
 
-// Broadcast helper
-const broadcast = (type, payload) => {
-  if (app.wss) {
-    for (const client of app.wss.clients) {
-      if (client.readyState === 1) {
-        client.send(JSON.stringify({ type, payload }));
-      }
-    }
-  }
-}
-
 const makeApp = function (db) {
+
   const metrics = new Metrics();
+  
+  setInterval(() => {
+    broadcast('metrics:update');
+  }, 1000);
+
   const eng = new MatchingEngine({
     onRested(order) {
       logger.info({ id: order.id, side: order.side, price: order.price, qty: order.qty, filled: order.filled }, `rested on ${new Date().toISOString()}`);
@@ -73,7 +68,7 @@ const makeApp = function (db) {
         sellId: t.sell.id,
         ts: t.ts
       });
-      broadcast('trade:new', t);
+      broadcast('trades:update', t);
     },
     onCancelled(order) {
       metrics.markCancel(1);
@@ -87,7 +82,9 @@ const makeApp = function (db) {
   app.db = db;
   app.eng = eng;
   app.metrics = metrics;
+
   app.use(express.json());
+
   app.use(cors());
 
   // Per-request timing for logs/metrics
@@ -125,6 +122,17 @@ const makeApp = function (db) {
   // Rebuild in-memory book from DB on reboot
   buildMemory(eng, db);
 
+  // Broadcast helper
+  const broadcast = (type, payload) => {
+    if (app.wss) {
+      for (const client of app.wss.clients) {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify({ type, payload }));
+        }
+      }
+    }
+  }
+
   // Clear helper fcn for dev admin
   const clearAll = function () {
     db.clear();
@@ -133,15 +141,6 @@ const makeApp = function (db) {
     eng.tradedQtyTotal = 0;
     metrics.reset();
   };
-
-  // Liveness
-  app.get('/', (req, res) => {
-    res.redirect(302, '/health');
-  });
-
-  app.get('/health', (req, res) => {
-    return res.status(200).send('OK');
-  });
 
   // Readiness
   app.get('/ready', (req, res) => {
@@ -416,6 +415,11 @@ const makeApp = function (db) {
     app.post('/admin/clear-db', authRequired, (req, res) => {
       try {
         clearAll();
+
+        broadcast('book:update');
+        broadcast('trade:update');
+        broadcast('metrics:update');
+
         return res.sendStatus(204);
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -423,6 +427,7 @@ const makeApp = function (db) {
     });
   }
 
+  // prev if not test
   if (process.env.NODE_ENV !== 'test') {
     app.use((req, res, next) => {
       if (req.method !== 'GET') {
