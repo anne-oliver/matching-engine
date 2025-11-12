@@ -1,34 +1,34 @@
 import { useEffect, useRef } from 'react';
 
-export default function useWebSocket(onMessage) {
-  const wsRef = useRef(null);
+let sharedSocket = null;
+const listeners = new Set()
+
+export default function useSharedWebSocket(onMessage) {
+  const wsRef = useRef(sharedSocket);
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${window.location.hostname}:3000`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('webSocket connected');
-    }
-
-    ws.onmessage = (event) => {
-      try {
+    if (!sharedSocket) {
+      sharedSocket = new WebSocket(`ws://${window.location.hostname}:3000`);
+      sharedSocket.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        onMessage(msg);
-      } catch(err) {
-        console.error('invalid ws message', err);
+        for (const cb of listeners) {
+          cb(msg);
+        }
       }
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
     }
 
+    //add component's callback to listeners
+    listeners.add(onMessage);
+
+    // remove cb on unmount
     return () => {
-      ws.close();
-    };
+      listeners.delete(onMessage);
+    }
+
   }, [onMessage]);
 
+  wsRef.current = sharedSocket;
   return wsRef;
 
 }
+

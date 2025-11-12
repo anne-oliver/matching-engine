@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import useWebSocket from './WebSocket.jsx';
+import useSharedWebSocket from './WebSocket.jsx';
 
-export default function Book({ poller, refreshBook }) {
+export default function Book() {
   const [depth, setDepth] = useState(10);
   const [book, setBook] = useState({ buys: [], sells: [] });
 
@@ -29,23 +29,19 @@ export default function Book({ poller, refreshBook }) {
       })
   }
 
-  useWebSocket((msg) => {
+  useEffect(() => {
+    fetchBook(depth);
+  }, [depth]);
+
+  const handleWsMessage = useCallback((msg) => {
     if (msg.type === 'book:update') {
       fetchBook(depth);
     }
-  });
+  }, [depth]);
 
-  useEffect(() => {
-    fetchBook(depth);
-  }, [depth, refreshBook]);
+  useSharedWebSocket(handleWsMessage);
 
-  useEffect(() => {
-    return poller(() => {
-      return fetchBook(depth);
-    })
-  }, [depth, poller, refreshBook]);
-
-const renderSide = function(title, levels, side) {
+  const renderSide = function(title, levels, side) {
 
     return (
       <div>

@@ -1,21 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import useSharedWebSocket from './WebSocket.jsx';
 
-export default function Metrics({ poller, refreshMetrics }) {
+export default function Metrics() {
   const [data, setData] = useState(null);
 
-  useEffect(() => {
-    return poller(() => {
-      return axios.get('/metrics')
-        .then((res) => {
-          setData(res.data);
-        })
-        .catch((err) => {
-          console.error('metrics poll error', err);
-        })
-    })
-  }, [poller])
+  const fetchMetrics = useCallback(() => {
+    return axios.get('/metrics')
+      .then((res) => setData(res.data))
+      .catch((err) => console.error('metrics fetch error', err));
+  }, []);
 
+  const handleWsMessage = useCallback((msg) => {
+    if (msg.type === 'metrics:update') {
+      fetchMetrics();
+    }
+  }, [fetchMetrics]);
+
+  useSharedWebSocket(handleWsMessage);
+
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics]);
 
   return (
     <div className="panel">

@@ -1,32 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import useWebSocket from './WebSocket.jsx';
+import useSharedWebSocket from './WebSocket.jsx';
 
-export default function Trades({ poller, refreshTrades }) {
+export default function Trades() {
   const [trades, setTrades] = useState([]);
-
-useEffect(() => {
-    return poller(() => {
-      return axios.get('/trades')
-        .then((res) => {
-          setTrades(res.data.slice(-15));
-        })
-        .catch((err) => {
-          console.error('trades polling error', err);
-        })
-    })
-  }, [poller, refreshTrades])
-
 
   const list = Array.isArray(trades) ? trades.slice() : [];
   const timestamp = (ts) => ts ? new Date(ts).toLocaleTimeString() : '—';
 
-  // useWebSocket((msg) => {
-  //   if (msg.type === 'trade:new') {
-  //     setTrades((prev) => [...prev.slice(-15), msg.payload]);
-  //   }
-  // });
+  const fetchTrades = useCallback(() => {
+    return axios.get('/trades')
+      .then(res => setTrades(res.data))
+      .catch(err => console.error('trades fetch error', err));
+  }, []);
 
+  const handleWsMessage = useCallback((msg) => {
+    if (msg.type === 'trades:update') {
+      fetchTrades();
+    }
+  }, [fetchTrades]);
+
+  useSharedWebSocket(handleWsMessage);
+
+  useEffect(() => {
+    fetchTrades(); // initial load
+  }, [fetchTrades]);
 
   return (
     <div className="panel">
