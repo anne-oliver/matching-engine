@@ -34,7 +34,6 @@ describe('Server API', () => {
 
     test('health/version/ready respond', () => {
       return Promise.all([
-        request(app).get('/health').expect(200),
         request(app).get('/ready').expect(200),
         request(app).get('/version').expect(200)
           .then(res => {

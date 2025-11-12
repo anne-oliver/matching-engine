@@ -8,21 +8,10 @@ import { useAuth } from './AuthContext.jsx';
 
 export default function App() {
   const { logout } = useAuth();
-  const [bookRefresh, setBookRefresh] = useState(false);
-  const [tradesRefresh, setTradesRefresh] = useState(false);
-  const [metricsRefresh, setMetricsRefresh] = useState(false);
-  const pollMs = 1000;
 
   const handleAdminReset = () => {
     axios.post('/admin/clear-db')
-      .then(() => {
-        refreshBookHandler();
-        refreshTradesHandler();
-        refreshMetricsHandler();
-      })
-      .catch((err) => {
-        console.error('admin reset error', err);
-      })
+      .catch((err) => console.error('admin reset error', err));
   };
 
   const handleLogout = () => {
@@ -32,44 +21,7 @@ export default function App() {
       });
   };
 
-  const refreshBookHandler = () => setBookRefresh((b) => !b);
-  const refreshTradesHandler = () => setTradesRefresh((b) => !b);
-  const refreshMetricsHandler = () => setMetricsRefresh((b) => !b);
-
-  const poller = useCallback((fn) => {
-    let cancelled = false;
-    let timerId = null;
-
-    const loop = () => {
-
-      if(cancelled) {
-        return;
-      }
-
-      fn()
-        .then(() => {
-          if(cancelled) {
-            return;
-          }
-          timerId = setTimeout(loop, pollMs);
-        })
-        .catch((err) => {
-          console.error(err);
-        });
-    }
-
-    loop();
-
-    return () => {
-      cancelled = true;
-
-      if(timerId) {
-        clearTimeout(timerId);
-      }
-    }
-
-  }, [pollMs]);
-
+  const isDev = process.env.NODE_ENV !== 'production';
 
   return (
     <div>
@@ -83,13 +35,12 @@ export default function App() {
       </div>
       <div className="app-shell">
         <div className="col">
-          <OrderForm onAfterSubmit={refreshBookHandler} />
-          <Metrics poller={poller} refreshMetrics={refreshMetricsHandler} />
+          <OrderForm />
+          {isDev && <Metrics />}
         </div>
-
         <div className="col">
-          <Book poller={poller} refreshBook={bookRefresh} />
-          <Trades poller={poller} refreshTrades={tradesRefresh}/>
+          <Book />
+          <Trades />
         </div>
       </div>
     </div>

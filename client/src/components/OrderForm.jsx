@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 const MAX_QTY = 100000;
 const MAX_PRICE = 1000000;
 
-export default function OrderForm({ onAfterSubmit }) {
+export default function OrderForm() {
   const [side, setSide] = useState('buy');
   const [type, setType] = useState('limit');
   const [price, setPrice] = useState(100);

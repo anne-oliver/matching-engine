@@ -21,7 +21,14 @@ export default function AuthProvider({ children }) {
   useEffect(() => {
     api.get('/me')
       .then(res => {
-        if (res.status === 200 && res.data?.user) setUser(res.data.user);
+        if (res.status === 200 && res.data?.user) {
+          setUser(res.data.user);
+        }
+      })
+      .catch(err => {
+        if (err.response?.status !== 401) {
+          console.error('auth check failed', err);
+        }
       })
       .finally(() => setLoading(false));
   }, []);

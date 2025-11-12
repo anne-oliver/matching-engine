@@ -43,13 +43,23 @@ const buildMemory = (eng, db) => {
 };
 
 const makeApp = function (db) {
+
   const metrics = new Metrics();
+
+  if(process.env.NODE_ENV !== 'test') {
+      setInterval(() => {
+        broadcast('metrics:update');
+      }, 1000);
+  }
+
   const eng = new MatchingEngine({
     onRested(order) {
       logger.info({ id: order.id, side: order.side, price: order.price, qty: order.qty, filled: order.filled }, `rested on ${new Date().toISOString()}`);
+      broadcast('book:update', { side: order.side });
     },
     onUpdated(order) {
       db.updateOrderRemaining(order.id, order.qty, order.filled);
+      broadcast('book:update', { side: order.side });
     },
     onTrade(t) {
       metrics.markTrade(1);
@@ -60,10 +70,12 @@ const makeApp = function (db) {
         sellId: t.sell.id,
         ts: t.ts
       });
+      broadcast('trades:update', t);
     },
     onCancelled(order) {
       metrics.markCancel(1);
       db.cancelOrder(order.id, order.qty);
+      broadcast('book:update', { side: order.side });
     }
   });
 
@@ -72,7 +84,9 @@ const makeApp = function (db) {
   app.db = db;
   app.eng = eng;
   app.metrics = metrics;
+
   app.use(express.json());
+
   app.use(cors());
 
   // Per-request timing for logs/metrics
@@ -110,6 +124,17 @@ const makeApp = function (db) {
   // Rebuild in-memory book from DB on reboot
   buildMemory(eng, db);
 
+  // Broadcast helper
+  const broadcast = (type, payload) => {
+    if (app.wss) {
+      for (const client of app.wss.clients) {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify({ type, payload }));
+        }
+      }
+    }
+  }
+
   // Clear helper fcn for dev admin
   const clearAll = function () {
     db.clear();
@@ -118,15 +143,6 @@ const makeApp = function (db) {
     eng.tradedQtyTotal = 0;
     metrics.reset();
   };
-
-  // Liveness
-  app.get('/', (req, res) => {
-    res.redirect(302, '/health');
-  });
-
-  app.get('/health', (req, res) => {
-    return res.status(200).send('OK');
-  });
 
   // Readiness
   app.get('/ready', (req, res) => {
@@ -401,6 +417,11 @@ const makeApp = function (db) {
     app.post('/admin/clear-db', authRequired, (req, res) => {
       try {
         clearAll();
+
+        broadcast('book:update');
+        broadcast('trade:update');
+        broadcast('metrics:update');
+
         return res.sendStatus(204);
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -408,6 +429,7 @@ const makeApp = function (db) {
     });
   }
 
+  // prev if not test
   if (process.env.NODE_ENV !== 'test') {
     app.use((req, res, next) => {
       if (req.method !== 'GET') {
@@ -431,10 +453,27 @@ const makeApp = function (db) {
   return app;
 };
 
+// Dev + Production Spin Up:
 if (require.main === module) {
   const app = makeApp(db);
-  const port = Number(process.env.PORT) || 3000;
-  app.listen(port, () => console.log(`Server listening on ${port}`));
+  const port = process.env.PORT
+  const server = app.listen(port, () => {
+    console.log(`Server listening on ${port}`);
+  });
+
+  // ---- WebSocket Server ----
+  const { WebSocketServer } = require('ws');
+  const wss = new WebSocketServer({ server });
+  app.wss = wss;
+
+  wss.on('connection', (ws) => {
+    console.log('WebSocket connected');
+
+    ws.on('close', () => {
+      console.log('WebSocket disconnected');
+    });
+  });
+
 }
 
 module.exports = { makeApp, buildMemory };
