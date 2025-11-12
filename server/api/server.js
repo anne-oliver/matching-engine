@@ -45,10 +45,12 @@ const buildMemory = (eng, db) => {
 const makeApp = function (db) {
 
   const metrics = new Metrics();
-  
-  setInterval(() => {
-    broadcast('metrics:update');
-  }, 1000);
+
+  if(process.env.NODE_ENV !== 'test') {
+      setInterval(() => {
+        broadcast('metrics:update');
+      }, 1000);
+  }
 
   const eng = new MatchingEngine({
     onRested(order) {
