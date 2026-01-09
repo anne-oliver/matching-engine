@@ -2,7 +2,6 @@
 
 A price–time FIFO matching engine for limit and market orders with partial fills. In-memory skip-list order book, SQLite persistence, RESTful API, and a React UI with live order book, trades, and performance metrics. Developed as a solo project to demonstrate full-stack systems design — from data structures and API design to containerized deployment and testing.
 
-🎥 [Watch the UI demo (MP4)](https://github.com/anne-oliver/matching-engine/releases/download/v1.0.0/matching-engine-demo.mp4)
 
 ## Features
 
